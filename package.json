@@ -1,0 +1,11 @@
+{
+  "name": "StEdsCheckForUpdates",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": {
+    "url": "https://github.com/AidanNichol/StEdsCheckForUpdates",
+    "type": "git"
+  },
+  "author": "AidanNichol <aidan@nicholware.co.uk>",
+  "license": "MIT"
+}
