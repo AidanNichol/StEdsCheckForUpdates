@@ -1,16 +1,12 @@
 #!/usr/bin/env node
+
 const _ = require('lodash');
 // const XDate = require('xdate');
 const debug = require('debug');
-let db = require('bookingsDB')(true);
 let generateEmail = require('./generateEmail');
 
 const Conf = require('conf');
-const DS = require('./mobx/DateStore');
-const WS = require('./mobx/WalksStore');
-const MS = require('./mobx/MembersStore');
-const AS = require('./mobx/AccountsStore');
-const PS = require('./mobx/PaymentsSummaryStore');
+const { DS, WS, MS, AS, PS, init } = require('StEdsStore');
 
 // const path = require('path');
 const settings = new Conf({
@@ -40,40 +36,12 @@ logToConsole.prototype.write = function(rec) {
   console.log(msg, obj);
 };
 
-// var logger = bunyan.createLogger({
-//   name: 'bookings', // Required
-
-//   streams: [
-//     {
-//       type: 'raw',
-//       stream: new logToConsole(),
-//     },
-//   ],
-//   src: false, // Optional, see "src" section
-// });
-
-// let lastRun = '2018-07-20';
+// var logger = bunyan.createLogger({   name: 'bookings', // Required   streams:
+// [     {       type: 'raw',       stream: new logToConsole(),     },   ], src:
+// false, // Optional, see "src" section }); let lastRun = '2018-07-20';
 let lastRun = settings.get('lastRun');
 let changedAccounts = {};
-const init = async () => {
-  logit('monitorLoading', 'start');
-  const info = await db.info();
-  logit('monitorLoading', 'info', info);
-  await PS.init(db);
-  logit('monitorLoading', 'PS');
-  await MS.init(db);
-  logit('monitorLoading', 'MS');
-  await WS.init(db);
-  logit('monitorLoading', 'WS');
-  await AS.init(db);
-  logit('monitorLoading', 'AS');
-  //  monitorChanges(db, info);
-  emitter.emit('startMonitoring', db);
-  //   })
-  //   .catch(error => {
-  //     console.warn('monitoring errored', error);
-  //   });
-};
+
 init()
   .then(() => {
     for (const account of AS.accountsValues) {
@@ -102,7 +70,12 @@ async function processChanges() {
     console.log('mail address', accId, account.name, email);
     // if (!isValidEmail(email)) console.warn('oh dear - email not valid');
     if (!email) continue;
-    const mail = generateEmail(account, lastRun, WS.openWalks, 'W' + DS.todaysDate);
+    const mail = generateEmail(
+      account,
+      lastRun,
+      WS.openWalks,
+      'W' + DS.todaysDate,
+    );
     sendEmail(mail, email);
   }
   lastRun = DS.getLogTime();
@@ -163,15 +136,15 @@ function sendEmail(body, email) {
   var data = {
     from: 'St.Edwards Booking System <aidan@mg.nicholware.co.uk>',
     to: email,
-    bcc: 'aidan@nicholware.co.uk, patjohnson613@gmail.com, sandysandy48@hotmail.co.uk',
+    bcc:
+      'aidan@nicholware.co.uk, patjohnson613@gmail.com, sandysandy48@hotmail.co.uk',
     subject: 'Booking Receipt ' + DS.now,
     text: 'Bookings and/or payments made to: ' + email,
     html: body,
   };
 
-  mailgun.messages().send(data, function(error, body) {
-    console.log(body);
-  });
+  // mailgun.messages().send(data, function(error, body) {   console.log(body);
+  // });
 }
 function getMailAddress(account) {
   let mems = account.accountMembers;
@@ -190,10 +163,10 @@ function getMailAddress(account) {
   return _.uniq(emails).join(', ');
 }
 const tester = /^[-!#$%&'*+/0-9=?A-Z^_a-z{|}~](\.?[-!#$%&'*+/0-9=?A-Z^_a-z`{|}~])*@[a-zA-Z0-9](-*\.?[a-zA-Z0-9])*\.[a-zA-Z](-?[a-zA-Z0-9])+$/;
-// Thanks to:
-// http://fightingforalostcause.net/misc/2006/compare-email-regex.php
+// Thanks to: http://fightingforalostcause.net/misc/2006/compare-email-regex.php
 // http://thedailywtf.com/Articles/Validating_Email_Addresses.aspx
-// http://stackoverflow.com/questions/201323/what-is-the-best-regular-expression-for-validating-email-addresses/201378#201378
+// http://stackoverflow.com/questions/201323/what-is-the-best-regular-expression
+// - for-validating-email-addresses/201378#201378
 const isValidEmail = email => {
   if (!email) return false;
 
@@ -246,8 +219,7 @@ emitter.on('startMonitoring', db => {
 });
 
 async function monitorChanges(db) {
-  // logit('info', info);
-  // lastSeq = info.update_seq;
+  // logit('info', info); lastSeq = info.update_seq;
   lastSeq = settings.get('lastSeq');
   // lastSeq -= 60;
   let monitor = db
@@ -256,7 +228,10 @@ async function monitorChanges(db) {
     .on('complete', () => {})
     .on('error', error => {
       logit('changes_error', error);
-      timeoutId = setTimeout(() => emitter.emit('startMonitoring', db), idletime);
+      timeoutId = setTimeout(
+        () => emitter.emit('startMonitoring', db),
+        idletime,
+      );
     });
   // The subscriber must return an unsubscribe function
   return () => monitor.cancel();
@@ -265,18 +240,19 @@ async function monitorChanges(db) {
 const handleChange = change => {
   if (change.id[0] === '_' || (change.doc && !change.doc.type)) return;
   var collection =
-    (change.doc && change.doc.type) || collections[change.id.match(/$([A-Z]+)/)[0]];
+    (change.doc && change.doc.type) ||
+    collections[change.id.match(/$([A-Z]+)/)[0]];
   logit('change', { change, collection });
   if (storeFn[collection]) {
     storeFn[collection](change); // update Mobx store
     lastSeq = change.seq;
     settings.set('lastSeq', change.seq);
     if (collection === 'walk' && !change.deleted) getWalkChanges(change.id);
-    if (collection === 'account' && !change.deleted) getAccountChanges(change.id);
+    if (collection === 'account' && !change.deleted)
+      getAccountChanges(change.id);
   }
 };
 
-// const getRev = rev => parseInt(rev.split('━')[0]);
-// var coll = new Intl.Collator();
-// var datCmp = (a, b) => coll.compare(a.dat, b.dat);
-// var idCmp = (a, b) => coll.compare(a.id, b.id);
+// const getRev = rev => parseInt(rev.split('━')[0]); var coll = new
+// Intl.Collator(); var datCmp = (a, b) => coll.compare(a.dat, b.dat); var idCmp
+// = (a, b) => coll.compare(a.id, b.id);
