@@ -9,12 +9,16 @@
   "author": "AidanNichol <aidan@nicholware.co.uk>",
   "license": "MIT",
   "dependencies": {
+    "StEdsSettings": "https://github.com/AidanNichol/StEdsSettings",
     "StEdsStore": "https://github.com/AidanNichol/StEdsStore",
+    "bookingsDBserver": "http://github.com/AidanNichol/bookingsDBserver",
     "debug": "^4.1.0",
     "emittery": "^0.4.1",
     "lodash": "^4.17.11",
     "logit": "https://github.com/AidanNichol/logit",
     "mailgun-js": "^0.21.0",
-    "settings": "https://github.com/AidanNichol/Settings"
+    "pouchdb-authentication": "^1.1.3",
+    "pouchdb-core": "^7.0.0",
+    "pouchdb-http": "^6.0.2"
   }
 }

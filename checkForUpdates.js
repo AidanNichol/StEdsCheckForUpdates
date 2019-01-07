@@ -4,9 +4,20 @@ const _ = require('lodash');
 // const XDate = require('xdate');
 const debug = require('debug');
 let generateEmail = require('./generateEmail');
+const Emittery = require('emittery');
+const emitter = new Emittery();
+let timeoutId = null;
+const idletime = 60 * 1000;
 
+emitter.on('accChanged', accId => {
+  changedAccounts[accId] = true;
+  if (timeoutId) clearTimeout(timeoutId);
+  timeoutId = setTimeout(processChanges, idletime);
+  console.log('accChanged', accId, changedAccounts);
+});
 const Conf = require('conf');
 const { DS, WS, MS, AS, PS, init } = require('StEdsStore');
+const db = require('bookingsDBserver');
 
 // const path = require('path');
 const settings = new Conf({
@@ -17,7 +28,7 @@ const settings = new Conf({
 
 console.log(settings.get());
 console.log(settings.store);
-console.log(settings.path);
+console.log('settings path', settings.path);
 
 // let { mailgunConf } = require(path.resolve(process.cwd(), './config.js'));
 let mailgunConf = settings.get('mailgunConf');
@@ -29,9 +40,10 @@ logit.debug = console.debug.bind(console);
 console.log('logit enabled:', logit.enabled);
 // var bunyan = require('bunyan');
 logit.debug('debug');
+
 function logToConsole() {}
 
-logToConsole.prototype.write = function(rec) {
+logToConsole.prototype.write = function (rec) {
   let { msg, name, hostname, level, v, time, pid, ...obj } = rec; // eslint-disable-line no-unused-vars
   console.log(msg, obj);
 };
@@ -42,7 +54,7 @@ logToConsole.prototype.write = function(rec) {
 let lastRun = settings.get('lastRun');
 let changedAccounts = {};
 
-init()
+init(db, emitter)
   .then(() => {
     for (const account of AS.accountsValues) {
       getMailAddress(account);
@@ -82,17 +94,6 @@ async function processChanges() {
   settings.set('lastRun', lastRun);
 }
 
-const Emittery = require('emittery');
-const emitter = new Emittery();
-let timeoutId = null;
-const idletime = 60 * 1000;
-
-emitter.on('accChanged', accId => {
-  changedAccounts[accId] = true;
-  if (timeoutId) clearTimeout(timeoutId);
-  timeoutId = setTimeout(processChanges, idletime);
-  console.log('accChanged', accId, changedAccounts);
-});
 /*
     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
     ┃                                                          ┃
@@ -136,8 +137,7 @@ function sendEmail(body, email) {
   var data = {
     from: 'St.Edwards Booking System <aidan@mg.nicholware.co.uk>',
     to: email,
-    bcc:
-      'aidan@nicholware.co.uk, patjohnson613@gmail.com, sandysandy48@hotmail.co.uk',
+    bcc: 'aidan@nicholware.co.uk, patjohnson613@gmail.com, sandysandy48@hotmail.co.uk',
     subject: 'Booking Receipt ' + DS.now,
     text: 'Bookings and/or payments made to: ' + email,
     html: body,
@@ -181,7 +181,7 @@ const isValidEmail = email => {
 
   var domainParts = parts[1].split('.');
   if (
-    domainParts.some(function(part) {
+    domainParts.some(function (part) {
       return part.length > 63;
     })
   )
@@ -214,6 +214,7 @@ const collections = {
 
 let lastSeq;
 emitter.on('startMonitoring', db => {
+  logit('event', 'StartMonitoring')
   monitorChanges(db);
   logit('monitorLoading', 'loaded');
 });
