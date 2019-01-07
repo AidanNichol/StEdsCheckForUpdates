@@ -1,1 +1,4 @@
 node_modules
+# ignore yalc
+.yalc
+yalk.lock
