@@ -9,6 +9,7 @@
       "request": "launch",
       "name": "checkForUpdates",
       "program": "${workspaceFolder}/checkForUpdates.js",
+      "envFile": "${workspaceFolder}/.env",
       "runtimeArgs": ["--preserve-symlinks"]
     },
     {

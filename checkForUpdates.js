@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-
+const settings = require('StEdsSettings');
 const _ = require('lodash');
 // const XDate = require('xdate');
 const debug = require('debug');
@@ -13,22 +13,28 @@ emitter.on('accChanged', accId => {
   changedAccounts[accId] = true;
   if (timeoutId) clearTimeout(timeoutId);
   timeoutId = setTimeout(processChanges, idletime);
-  console.log('accChanged', accId, changedAccounts);
+  console.log('accChanged', accId);
 });
 const Conf = require('conf');
-const { DS, WS, MS, AS, PS, init } = require('StEdsStore');
+const {
+  DS,
+  WS,
+  MS,
+  AS,
+  PS,
+  init
+} = require('StEdsStore');
 const db = require('bookingsDBserver');
 
 // const path = require('path');
-const settings = new Conf({
-  // projectName: 'StEdsBookingsCheckForUpdates',
-  configName: 'checkForUpdates',
-  // cwd: process.cwd(),
-});
+// const settings = new Conf({
+//   projectName: 'stedsbookings',
+//   configName: 'checkForUpdates'
+// });
 
-console.log(settings.get());
-console.log(settings.store);
-console.log('settings path', settings.path);
+// console.log(settings.get());
+// console.log(settings.store);
+// console.log('settings path', settings.path);
 
 // let { mailgunConf } = require(path.resolve(process.cwd(), './config.js'));
 let mailgunConf = settings.get('mailgunConf');
@@ -44,7 +50,16 @@ logit.debug('debug');
 function logToConsole() {}
 
 logToConsole.prototype.write = function (rec) {
-  let { msg, name, hostname, level, v, time, pid, ...obj } = rec; // eslint-disable-line no-unused-vars
+  let {
+    msg,
+    name,
+    hostname,
+    level,
+    v,
+    time,
+    pid,
+    ...obj
+  } = rec; // eslint-disable-line no-unused-vars
   console.log(msg, obj);
 };
 
@@ -133,6 +148,7 @@ function getAccountChanges(accId) {
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
   */
 var mailgun = require('mailgun-js')(mailgunConf);
+
 function sendEmail(body, email) {
   var data = {
     from: 'St.Edwards Booking System <aidan@mg.nicholware.co.uk>',
@@ -146,6 +162,7 @@ function sendEmail(body, email) {
   // mailgun.messages().send(data, function(error, body) {   console.log(body);
   // });
 }
+
 function getMailAddress(account) {
   let mems = account.accountMembers;
   mems = mems
@@ -216,7 +233,7 @@ let lastSeq;
 emitter.on('startMonitoring', db => {
   logit('event', 'StartMonitoring')
   monitorChanges(db);
-  logit('monitorLoading', 'loaded');
+  // logit('monitorLoading', 'loaded');
 });
 
 async function monitorChanges(db) {
@@ -224,14 +241,19 @@ async function monitorChanges(db) {
   lastSeq = settings.get('lastSeq');
   // lastSeq -= 60;
   let monitor = db
-    .changes({ since: lastSeq, live: true, timeout: false, include_docs: true })
+    .changes({
+      since: lastSeq,
+      live: true,
+      timeout: false,
+      include_docs: true
+    })
     .on('change', info => handleChange(info))
     .on('complete', () => {})
     .on('error', error => {
-      logit('changes_error', error);
+      if (error.code!=='ESOCKETTIMEDOUT')logit('changes_error', error);
       timeoutId = setTimeout(
         () => emitter.emit('startMonitoring', db),
-        idletime,
+        300000,
       );
     });
   // The subscriber must return an unsubscribe function
@@ -243,11 +265,16 @@ const handleChange = change => {
   var collection =
     (change.doc && change.doc.type) ||
     collections[change.id.match(/$([A-Z]+)/)[0]];
-  logit('change', { change, collection });
+  logit('change', {
+    change,
+    collection
+  });
   if (storeFn[collection]) {
     storeFn[collection](change); // update Mobx store
-    lastSeq = change.seq;
-    settings.set('lastSeq', change.seq);
+    if (lastSeq !== change.seq){
+      lastSeq = change.seq;
+      settings.set('lastSeq', change.seq);
+    }
     if (collection === 'walk' && !change.deleted) getWalkChanges(change.id);
     if (collection === 'account' && !change.deleted)
       getAccountChanges(change.id);
