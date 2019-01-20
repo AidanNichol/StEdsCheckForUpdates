@@ -26,17 +26,6 @@ const {
 } = require('StEdsStore');
 const db = require('bookingsDBserver');
 
-// const path = require('path');
-// const settings = new Conf({
-//   projectName: 'stedsbookings',
-//   configName: 'checkForUpdates'
-// });
-
-// console.log(settings.get());
-// console.log(settings.store);
-// console.log('settings path', settings.path);
-
-// let { mailgunConf } = require(path.resolve(process.cwd(), './config.js'));
 let mailgunConf = settings.get('mailgunConf');
 
 debug.enable('updates, -pouchdb*');
